@@ -169,20 +169,32 @@ def calculate_fifo(df):
 def fetch_current_prices(symbols):
     """Fetch current market prices from yfinance."""
     prices = {}
+    timestamps = {}
     for sym in symbols:
         yf_ticker = TICKER_MAP.get(sym)
         if not yf_ticker:
             continue
         try:
             ticker = yf.Ticker(yf_ticker)
-            hist = ticker.history(period="5d")
-            if not hist.empty:
-                valid = hist[hist['Close'].notna()]
-                if not valid.empty:
-                    prices[sym] = valid['Close'].iloc[-1]
+            info = ticker.info
+            price = info.get('regularMarketPrice') or info.get('currentPrice')
+            if price:
+                prices[sym] = price
+                market_time = info.get('regularMarketTime')
+                if market_time:
+                    timestamps[sym] = datetime.fromtimestamp(market_time).strftime('%d-%b-%Y %H:%M')
+                else:
+                    timestamps[sym] = datetime.now().strftime('%d-%b-%Y %H:%M')
+            else:
+                hist = ticker.history(period="5d")
+                if not hist.empty:
+                    valid = hist[hist['Close'].notna()]
+                    if not valid.empty:
+                        prices[sym] = valid['Close'].iloc[-1]
+                        timestamps[sym] = valid.index[-1].strftime('%d-%b-%Y')
         except:
             pass
-    return prices
+    return prices, timestamps
 
 
 def fetch_prev_close_prices(symbols):
@@ -321,7 +333,7 @@ elif page == "Current Holdings":
         st.info("No current holdings found.")
     else:
         with st.spinner("Fetching current market prices..."):
-            current_prices = fetch_current_prices(list(holdings.keys()))
+            current_prices, _ = fetch_current_prices(list(holdings.keys()))
 
         holdings_data = []
         today = datetime.now()
@@ -413,8 +425,7 @@ elif page == "Today's P&L":
             prev_close, prev_dates = fetch_prev_close_prices(holding_symbols)
 
         with st.spinner("Fetching live/current prices..."):
-            live_prices = fetch_live_prices(holding_symbols)
-            ltp_time = datetime.now().strftime('%d-%b-%Y %H:%M')
+            live_prices, ltp_timestamps = fetch_live_prices(holding_symbols)
 
         todays_data = []
         for symbol, lots in holdings.items():
@@ -432,7 +443,7 @@ elif page == "Today's P&L":
             todays_data.append({
                 'Symbol': symbol, 'Company': company, 'Qty': total_qty,
                 'Prev Close': prev, 'Prev Close Date': prev_dates.get(symbol, ''),
-                'LTP': ltp, 'LTP Time': ltp_time,
+                'LTP': ltp, 'LTP Time': ltp_timestamps.get(symbol, ''),
                 'Change (Rs)': change_rs, 'Change (%)': change_pct,
                 'Day P&L (Rs)': day_pnl,
             })
@@ -518,7 +529,7 @@ elif page == "Portfolio Summary":
     st.subheader("Current Holdings Allocation")
     if holdings:
         with st.spinner("Fetching prices..."):
-            current_prices = fetch_current_prices(list(holdings.keys()))
+            current_prices, _ = fetch_current_prices(list(holdings.keys()))
 
         alloc_data = []
         for symbol, lots in holdings.items():
