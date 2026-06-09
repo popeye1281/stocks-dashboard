@@ -188,7 +188,7 @@ def fetch_current_prices(symbols):
 def fetch_prev_close_prices(symbols):
     """Fetch previous trading day close from latest_prices.csv (PREV_CLOSE column)."""
     if not os.path.exists(PRICES_CSV_PATH):
-        return {}
+        return {}, {}
     try:
         prices_df = pd.read_csv(PRICES_CSV_PATH)
 
@@ -206,13 +206,23 @@ def fetch_prev_close_prices(symbols):
         else:
             csv_prices = dict(zip(prices_df['SYMBOL'], prices_df['CLOSE_PRICE']))
 
+        # Get prev close date
+        if 'PREV_DATE' in prices_df.columns:
+            csv_dates = dict(zip(prices_df['SYMBOL'], prices_df['PREV_DATE']))
+        elif 'TRADE_DATE' in prices_df.columns:
+            csv_dates = dict(zip(prices_df['SYMBOL'], prices_df['TRADE_DATE']))
+        else:
+            csv_dates = {}
+
         prices = {}
+        dates = {}
         for sym, price_sym in price_symbols.items():
             if price_sym in csv_prices and pd.notna(csv_prices.get(price_sym)):
                 prices[sym] = float(csv_prices[price_sym])
-        return prices
+                dates[sym] = csv_dates.get(price_sym, '')
+        return prices, dates
     except Exception:
-        return {}
+        return {}, {}
 
 
 @st.cache_data(ttl=60)
@@ -400,10 +410,11 @@ elif page == "Today's P&L":
         holding_symbols = list(holdings.keys())
 
         with st.spinner("Fetching previous close prices..."):
-            prev_close = fetch_prev_close_prices(holding_symbols)
+            prev_close, prev_dates = fetch_prev_close_prices(holding_symbols)
 
         with st.spinner("Fetching live/current prices..."):
             live_prices = fetch_live_prices(holding_symbols)
+            ltp_time = datetime.now().strftime('%d-%b-%Y %H:%M')
 
         todays_data = []
         for symbol, lots in holdings.items():
@@ -420,7 +431,8 @@ elif page == "Today's P&L":
             day_pnl = change_rs * total_qty
             todays_data.append({
                 'Symbol': symbol, 'Company': company, 'Qty': total_qty,
-                'Prev Close': prev, 'LTP': ltp,
+                'Prev Close': prev, 'Prev Close Date': prev_dates.get(symbol, ''),
+                'LTP': ltp, 'LTP Time': ltp_time,
                 'Change (Rs)': change_rs, 'Change (%)': change_pct,
                 'Day P&L (Rs)': day_pnl,
             })
@@ -468,7 +480,7 @@ elif page == "Today's P&L":
                 for _, row in top_loss.iterrows():
                     st.write(f"**{row['Symbol']}** ({row['Company']}): ₹{row['Day P&L (Rs)']:+,.0f} ({row['Change (%)']:+.2f}%)")
 
-            st.caption("Prev Close from data/latest_prices.csv | Live prices via yfinance (5-min cache)")
+            st.caption("Prev Close from data/latest_prices.csv | Live prices via yfinance (1-min cache)")
 
 
 # ============================================================

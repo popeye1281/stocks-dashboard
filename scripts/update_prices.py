@@ -3,7 +3,6 @@
 import os
 import pandas as pd
 import yfinance as yf
-from datetime import datetime
 
 # Same ticker map as app.py
 TICKER_MAP = {
@@ -62,10 +61,9 @@ def main():
 
     print(f"Fetching prices for {len(all_tickers)} tickers...")
 
-    data = yf.download(all_tickers, period="2d", group_by="ticker", progress=False)
+    data = yf.download(all_tickers, period="5d", group_by="ticker", progress=False)
 
     rows = []
-    today = datetime.now().strftime("%Y-%m-%d")
 
     for ticker in all_tickers:
         symbol = get_symbol_name(ticker)
@@ -74,11 +72,25 @@ def main():
                 ticker_data = data
             else:
                 ticker_data = data[ticker]
-            close_price = ticker_data["Close"].dropna().iloc[-1]
+            closes = ticker_data["Close"].dropna()
+            if len(closes) >= 2:
+                close_price = round(float(closes.iloc[-1]), 2)
+                prev_close = round(float(closes.iloc[-2]), 2)
+                trade_date = closes.index[-1].strftime("%Y-%m-%d")
+                prev_date = closes.index[-2].strftime("%Y-%m-%d")
+            elif len(closes) == 1:
+                close_price = round(float(closes.iloc[-1]), 2)
+                prev_close = close_price
+                trade_date = closes.index[-1].strftime("%Y-%m-%d")
+                prev_date = trade_date
+            else:
+                continue
             rows.append({
                 "SYMBOL": symbol,
-                "TRADE_DATE": today,
-                "CLOSE_PRICE": round(float(close_price), 2),
+                "TRADE_DATE": trade_date,
+                "CLOSE_PRICE": close_price,
+                "PREV_DATE": prev_date,
+                "PREV_CLOSE": prev_close,
             })
         except (KeyError, IndexError):
             print(f"  Warning: Could not fetch price for {ticker}")
