@@ -6,6 +6,9 @@ on:
     - cron: '0 12 * * 1-5'
   workflow_dispatch: # Allows manual trigger from GitHub Actions tab
 
+permissions:
+  contents: write
+
 jobs:
   update-prices:
     runs-on: ubuntu-latest
