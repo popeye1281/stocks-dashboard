@@ -7,7 +7,7 @@ No Snowflake dependency - uses CSV files and yfinance for live prices.
 import streamlit as st
 import pandas as pd
 import yfinance as yf
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from collections import defaultdict
 import os
 
@@ -182,9 +182,11 @@ def fetch_current_prices(symbols):
                 prices[sym] = price
                 market_time = info.get('regularMarketTime')
                 if market_time:
-                    timestamps[sym] = datetime.fromtimestamp(market_time).strftime('%d-%b-%Y %H:%M')
+                    IST = timezone(timedelta(hours=5, minutes=30))
+                    timestamps[sym] = datetime.fromtimestamp(market_time, tz=IST).strftime('%d-%b-%Y %H:%M')
                 else:
-                    timestamps[sym] = datetime.now().strftime('%d-%b-%Y %H:%M')
+                    IST = timezone(timedelta(hours=5, minutes=30))
+                    timestamps[sym] = datetime.now(tz=IST).strftime('%d-%b-%Y %H:%M')
             else:
                 hist = ticker.history(period="5d")
                 if not hist.empty:
